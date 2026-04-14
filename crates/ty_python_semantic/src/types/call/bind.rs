@@ -2948,7 +2948,7 @@ impl<'db> CallableBinding<'db> {
             let signature = bound_overload.signature.partially_apply(
                 db,
                 &partial_application,
-                bound_overload.partial_specialization,
+                bound_overload.specialization,
                 bound_overload.unspecialized_return_type(db),
             );
             let dedup_key = signature.clone().with_definition(None);
@@ -5327,7 +5327,11 @@ impl<'a, 'db> ArgumentTypeChecker<'a, 'db> {
 
     fn finish(
         self,
-    ) -> (InferableTypeVars<'db>, Option<Specialization<'db>>, Type<'db>) {
+    ) -> (
+        InferableTypeVars<'db>,
+        Option<Specialization<'db>>,
+        Type<'db>,
+    ) {
         (self.inferable_typevars, self.specialization, self.return_ty)
     }
 }
@@ -5402,10 +5406,6 @@ pub(crate) struct Binding<'db> {
     /// The specialization that was inferred from the argument types, if the callable is generic.
     specialization: Option<Specialization<'db>>,
 
-    /// A partial-application view of the inferred specialization which preserves uninferred
-    /// type variables as generic.
-    partial_specialization: Option<Specialization<'db>>,
-
     /// Information about which parameter(s) each argument was matched with, in argument source
     /// order.
     argument_matches: Box<[MatchedArgument<'db>]>,
@@ -5433,7 +5433,6 @@ impl<'db> Binding<'db> {
             constructor_context: None,
             inferable_typevars: InferableTypeVars::None,
             specialization: None,
-            partial_specialization: None,
             argument_matches: Box::from([]),
             variadic_argument_matched_to_variadic_parameter: false,
             parameter_tys: Box::from([]),
@@ -5523,7 +5522,6 @@ impl<'db> Binding<'db> {
         checker.check_argument_types(constraints);
 
         (self.inferable_typevars, self.specialization, self.return_ty) = checker.finish();
-        self.partial_specialization = self.specialization;
     }
 
     pub(crate) fn set_return_type(&mut self, return_ty: Type<'db>) {
@@ -5695,7 +5693,6 @@ impl<'db> Binding<'db> {
             return_ty: self.return_ty,
             inferable_typevars: self.inferable_typevars,
             specialization: self.specialization,
-            partial_specialization: self.partial_specialization,
             argument_matches: self.argument_matches.clone(),
             parameter_tys: self.parameter_tys.clone(),
             errors: self.errors.clone(),
@@ -5707,7 +5704,6 @@ impl<'db> Binding<'db> {
             return_ty,
             inferable_typevars,
             specialization,
-            partial_specialization,
             argument_matches,
             parameter_tys,
             errors,
@@ -5716,7 +5712,6 @@ impl<'db> Binding<'db> {
         self.return_ty = return_ty;
         self.inferable_typevars = inferable_typevars;
         self.specialization = specialization;
-        self.partial_specialization = partial_specialization;
         self.argument_matches = argument_matches;
         self.parameter_tys = parameter_tys;
         self.errors = errors;
@@ -5741,7 +5736,6 @@ impl<'db> Binding<'db> {
         self.return_ty = self.initial_return_type(db);
         self.inferable_typevars = InferableTypeVars::None;
         self.specialization = None;
-        self.partial_specialization = None;
         self.argument_matches = Box::from([]);
         self.parameter_tys = Box::from([]);
         self.errors.clear();
@@ -5753,7 +5747,6 @@ struct BindingSnapshot<'db> {
     return_ty: Type<'db>,
     inferable_typevars: InferableTypeVars<'db>,
     specialization: Option<Specialization<'db>>,
-    partial_specialization: Option<Specialization<'db>>,
     argument_matches: Box<[MatchedArgument<'db>]>,
     parameter_tys: Box<[Option<Type<'db>>]>,
     errors: Vec<BindingError<'db>>,
@@ -5795,7 +5788,6 @@ impl<'db> CallableBindingSnapshot<'db> {
                 snapshot.return_ty = binding.return_ty;
                 snapshot.inferable_typevars = binding.inferable_typevars;
                 snapshot.specialization = binding.specialization;
-                snapshot.partial_specialization = binding.partial_specialization;
                 snapshot
                     .argument_matches
                     .clone_from(&binding.argument_matches);
